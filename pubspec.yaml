@@ -33,6 +33,7 @@ dependencies:
 
   # S
   socket_io_client: ^1.0.1
+  sqflite: ^2.0.2
 
   # P
   provider: ^6.0.2
