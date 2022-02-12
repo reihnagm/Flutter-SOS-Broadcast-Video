@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -34,10 +35,27 @@ class SocketServices {
     });
     socket.onDisconnect((_) {
       context.read<NetworkProvider>().turnOffSocket();
+      Timer.periodic(const Duration(seconds: 1), (Timer t) => socket.connect());
+    });
+    socket.onConnectTimeout((_) {
+      context.read<NetworkProvider>().turnOffSocket();
+      Timer.periodic(const Duration(seconds: 1), (Timer t) => socket.connect());
+    });
+    socket.onError((_) {
+      context.read<NetworkProvider>().turnOffSocket();
+      Timer.periodic(const Duration(seconds: 1), (Timer t) => socket.connect());
+    });
+    socket.onReconnectError((_) {
+      context.read<NetworkProvider>().turnOffSocket();
+      Timer.periodic(const Duration(seconds: 1), (Timer t) => socket.connect());
+    });
+    socket.onReconnectFailed((_) {
+      context.read<NetworkProvider>().turnOffSocket();
+      Timer.periodic(const Duration(seconds: 1), (Timer t) => socket.connect());
     });
     socket.onConnectError((_) {
-      debugPrint("=== SOCKET IS OFF  ===");
       context.read<NetworkProvider>().turnOffSocket();
+      Timer.periodic(const Duration(seconds: 1), (Timer t) => socket.connect());
     });
   }
   
