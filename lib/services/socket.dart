@@ -14,7 +14,7 @@ class SocketServices {
 
   void connect(BuildContext context) {
     // http://192.168.113.73:3000
-    socket = io.io('http://4465-180-244-7-38.ngrok.io', <String, dynamic>{
+    socket = io.io('http://5f2d-180-244-7-38.ngrok.io', <String, dynamic>{
       "transports": ["websocket"],
       "autoConnect": false
     });    

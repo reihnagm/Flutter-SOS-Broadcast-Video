@@ -15,7 +15,7 @@ class VideoProvider with ChangeNotifier {
     super.dispose();
   }
 
-  List _v = [];
+  final List _v = [];
   List get v => [..._v]; 
 
   ListenVStatus _listenVStatus = ListenVStatus.idle;

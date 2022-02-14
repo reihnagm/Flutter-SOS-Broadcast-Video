@@ -414,439 +414,291 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                     child: CustomScrollView(
                       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                       slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.only(top: 25.0, bottom: 25.0),
-                          sliver: SliverList(
-                            delegate: SliverChildListDelegate([
-                              Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
+                     
+
+                        SliverFillRemaining(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                                              
+                              Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.all(18.0),
+                                decoration: DottedDecoration(
+                                  shape: Shape.box, 
+                                  color: Colors.black87, 
+                                  strokeWidth: 2
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      FilePickerResult? result = await FilePicker.platform.pickFiles(
+                                        type: FileType.video,
+                                      );
+                                      File f = File(result!.files.single.path!);
+                                      setState(() {
+                                        isCompressed = true;
+                                        file = File(f.path);
+                                      });
+                                      await generateThumbnail(file!);
+                                      await getVideoSize(file!);
+                                      final info = await VideoServices.compressVideo(file!);
+                                      setState(() {
+                                        isCompressed = false;
+                                        videoCompressInfo = info;
+                                        duration = Duration(microseconds: (videoCompressInfo!.duration! * 1000).toInt());
+                                      });
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(30.0),
+                                      child: videoSize == null && thumbnail == null ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // Expanded(
+                                          //   child: Column(
+                                          //     children: const [
+                                          //       Icon(
+                                          //         Icons.video_call,
+                                          //         size: 20.0,
+                                          //         color: Colors.black87,
+                                          //       ),
+                                          //       SizedBox(height: 5.0),
+                                          //       Text("Browse a Video",
+                                          //         style: TextStyle(
+                                          //           fontSize: 16.0
+                                          //         ),
+                                          //       ),
+                                          //     ],
+                                          //   ),
+                                          // ),
+                                          Expanded(
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                onTap: () async {
+
+                                                  await onVideoRecordButtonPressed();
+
+                                                  Navigator.push(context,
+                                                    PageRouteBuilder(pageBuilder: (context, animation, secondaryAnimation) {
+                                                      return Scaffold(
+                                                        key: UniqueKey(),
+                                                        body: SafeArea(
+                                                          child: Stack(
+                                                            clipBehavior: Clip.none,
+                                                            children: [
                         
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 16.0, right: 16.0, top: 80.0, bottom: 80.0),
-                                      child: Consumer<VideoProvider>(
-                                        builder: (BuildContext context, VideoProvider videoProvider, Widget? child) {
-                                          if(videoProvider.listenVStatus == ListenVStatus.loading) {
-                                            return const Center(
-                                              child: SpinKitThreeBounce(
-                                                size: 20.0,
-                                                color: Colors.black87,
-                                              ),
-                                            );
-                                          }
-                                          if(videoProvider.v.isEmpty) {
-                                            return const Text("There is no Videos",
-                                              style: TextStyle(
-                                                fontSize: 15.0,
-                                              ),
-                                            );
-                                          }
-                                          return ListView.builder(
-                                            shrinkWrap: true,
-                                            physics: const NeverScrollableScrollPhysics(),
-                                            padding: EdgeInsets.zero,
-                                            itemCount: videoProvider.v.length,
-                                            itemBuilder: (BuildContext context, int i) {
-                                              VideoPlayerController? vid = videoProvider.v[i]["video"];
-                                              return Container(
-                                                margin: const EdgeInsets.only(bottom: 5.0),
-                                                child: Card(
-                                                  child: Container(
-                                                    padding: const EdgeInsets.all(10.0),
-                                                    child: Column( 
-                                                      children: [
-                        
-                                                        vid != null && vid.value.isInitialized
-                                                        ? Container(
-                                                            alignment: Alignment.topCenter, 
-                                                            child: Stack(
-                                                              children: [
-                                                                AspectRatio(
-                                                                  aspectRatio: vid.value.aspectRatio,
-                                                                  child: VideoPlayer(vid),
+                                                              Container(
+                                                                padding: const EdgeInsets.all(1.0),
+                                                                width: double.infinity,
+                                                                height: double.infinity,
+                                                                decoration: BoxDecoration(
+                                                                  color: Colors.black,
+                                                                  border: Border.all(
+                                                                    color: controller != null && controller!.value.isRecordingVideo
+                                                                    ? Colors.redAccent
+                                                                    : Colors.grey,
+                                                                    width: 3.0,
+                                                                  ),
                                                                 ),
-                                                                Positioned.fill(
-                                                                  child: GestureDetector(
-                                                                    behavior: HitTestBehavior.opaque,
-                                                                    onTap: () => vid.value.isPlaying 
-                                                                    ? vid.pause() 
-                                                                    : vid.play(),
-                                                                    child: Stack(
-                                                                      children: [
-                                                                        vid.value.isPlaying 
-                                                                        ? Container() 
-                                                                        : Container(
-                                                                            alignment: Alignment.center,
-                                                                            child: const Icon(
-                                                                              Icons.play_arrow,
-                                                                              color: Colors.white,
-                                                                              size: 80
-                                                                            ),
-                                                                          ),
-                                                                        Positioned(
-                                                                          bottom: 0.0,
-                                                                          left: 0.0,
-                                                                          right: 0.0,
-                                                                          child: VideoProgressIndicator(
-                                                                            vid,
-                                                                            allowScrubbing: true,
-                                                                          )
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                  )
-                                                                )
-                                                              ],
-                                                            )
-                                                          )
-                                                        : const SizedBox(
-                                                          height: 200,
-                                                          child: SpinKitThreeBounce(
-                                                            size: 20.0,
-                                                            color: Colors.black87,
-                                                          ),
-                                                        ),
-                        
-                                                        Container(
-                                                          margin: const EdgeInsets.only(top: 15.0, bottom: 15.0),
-                                                          child: Center(
-                                                            child: Column(
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                Row(
-                                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                                  children: [
-                                                                    Expanded(
-                                                                      flex: 4,
-                                                                      child: Text(videoProvider.v[i]["msg"].toString(),
-                                                                        style: const TextStyle(
-                                                                          fontSize: 16.0,
-                                                                          fontWeight: FontWeight.bold
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                    Expanded(
-                                                                      flex: 1,
-                                                                      child: Material(
-                                                                        color: Colors.transparent,
-                                                                        child: InkWell(
-                                                                          onTap: () {
-                                                                            videoProvider.deleteV(
-                                                                              context, 
-                                                                              id: videoProvider.v[i]["id"].toString()
-                                                                            );
-                                                                          },
-                                                                          child: const Padding(
-                                                                            padding: EdgeInsets.all(8.0),
-                                                                            child: Icon(
-                                                                              Icons.remove_circle,
-                                                                              color: Colors.redAccent,
-                                                                              size: 30.0,
-                                                                            ),
-                                                                          ),
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                )
-                                                              ],
-                                                            ) 
-                                                          ),
-                                                        )
-                        
-                                                      ],  
-                                                    )
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    
-                                    Container(
-                                      width: double.infinity,
-                                      margin: const EdgeInsets.all(18.0),
-                                      decoration: DottedDecoration(
-                                        shape: Shape.box, 
-                                        color: Colors.black87, 
-                                        strokeWidth: 2
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () async {
-                                            FilePickerResult? result = await FilePicker.platform.pickFiles(
-                                              type: FileType.video,
-                                            );
-                                            File f = File(result!.files.single.path!);
-                                            setState(() {
-                                              isCompressed = true;
-                                              file = File(f.path);
-                                            });
-                                            await generateThumbnail(file!);
-                                            await getVideoSize(file!);
-                                            final info = await VideoServices.compressVideo(file!);
-                                            setState(() {
-                                              isCompressed = false;
-                                              videoCompressInfo = info;
-                                              duration = Duration(microseconds: (videoCompressInfo!.duration! * 1000).toInt());
-                                            });
-                                          },
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(30.0),
-                                            child: videoSize == null && thumbnail == null ? Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    children: const [
-                                                      Icon(
-                                                        Icons.video_call,
-                                                        size: 20.0,
-                                                        color: Colors.black87,
-                                                      ),
-                                                      SizedBox(height: 5.0),
-                                                      Text("Browse a Video",
-                                                        style: TextStyle(
-                                                          fontSize: 16.0
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  child: Material(
-                                                    color: Colors.transparent,
-                                                    child: InkWell(
-                                                      onTap: () {
-                                                        Navigator.push(context,
-                                                          PageRouteBuilder(pageBuilder: (context, animation, secondaryAnimation) {
-                                                            return Scaffold(
-                                                              key: UniqueKey(),
-                                                              body: SafeArea(
-                                                                child: Stack(
-                                                                  clipBehavior: Clip.none,
-                                                                  children: [
-
-                                                                    Container(
-                                                                      padding: const EdgeInsets.all(1.0),
-                                                                      width: double.infinity,
-                                                                      height: double.infinity,
-                                                                      decoration: BoxDecoration(
-                                                                        color: Colors.black,
-                                                                        border: Border.all(
-                                                                          color: controller != null && controller!.value.isRecordingVideo
-                                                                          ? Colors.redAccent
-                                                                          : Colors.grey,
-                                                                          width: 3.0,
-                                                                        ),
-                                                                      ),
-                                                                      child: _cameraPreviewWidget()
-                                                                    ),
-                                                                    
-                                                                    Align(
-                                                                      alignment: Alignment.center,
-                                                                      child: Container(
-                                                                        padding: const EdgeInsets.all(5.0),
-                                                                        decoration: const BoxDecoration(
-                                                                          color: Colors.white,
-                                                                          shape: BoxShape.circle
-                                                                        ),
-                                                                        child: IconButton(
-                                                                          icon: const Icon(Icons.stop),
-                                                                          color: Colors.red,
-                                                                          onPressed: controller != null &&
-                                                                          controller!.value.isInitialized &&
-                                                                          controller!.value.isRecordingVideo
-                                                                          ? () => onStopButtonPressed(context)
-                                                                          : null,
-                                                                        ),
-                                                                      ),
-                                                                    ),
-
-                                                                  ],
+                                                                child: _cameraPreviewWidget()
+                                                              ),
+                                                              
+                                                              Align(
+                                                                alignment: Alignment.center,
+                                                                child: Container(
+                                                                  padding: const EdgeInsets.all(5.0),
+                                                                  decoration: const BoxDecoration(
+                                                                    color: Colors.white,
+                                                                    shape: BoxShape.circle
+                                                                  ),
+                                                                  child: IconButton(
+                                                                    icon: const Icon(Icons.stop),
+                                                                    color: Colors.red,
+                                                                    onPressed: controller != null &&
+                                                                    controller!.value.isInitialized &&
+                                                                    controller!.value.isRecordingVideo
+                                                                    ? () => onStopButtonPressed(context)
+                                                                    : null,
+                                                                  ),
                                                                 ),
                                                               ),
-                                                            );
-                                                          },
-                                                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                                            const begin = Offset(-1.0, 0.0);
-                                                            const end = Offset.zero;
-                                                            const curve = Curves.ease;
-                                                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                                                            return SlideTransition(
-                                                              position: animation.drive(tween),
-                                                              child: child,
-                                                            );
-                                                          })
-                                                        );
-                                                      },
-                                                      child: Column(
-                                                        children: const [
-                                                          Icon(
-                                                            Icons.videocam,
-                                                            size: 20.0,
-                                                            color: Colors.black87,
+                        
+                                                            ],
                                                           ),
-                                                          SizedBox(height: 5.0),
-                                                          Text("Record a Video",
-                                                            style: TextStyle(
-                                                              fontSize: 16.0
-                                                            ),
-                                                          ),
-                                                        ],
+                                                        ),
+                                                      );
+                                                    },
+                                                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                                      const begin = Offset(-1.0, 0.0);
+                                                      const end = Offset.zero;
+                                                      const curve = Curves.ease;
+                                                      var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                                                      return SlideTransition(
+                                                        position: animation.drive(tween),
+                                                        child: child,
+                                                      );
+                                                    })
+                                                  );
+                                                },
+                                                child: Column(
+                                                  children: const [
+                                                    Icon(
+                                                      Icons.videocam,
+                                                      size: 20.0,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    SizedBox(height: 5.0),
+                                                    Text("Record a Video",
+                                                      style: TextStyle(
+                                                        fontSize: 16.0
                                                       ),
                                                     ),
-                                                  ),
-                                                )
-                                              ],
-                                            ) : isCompressed 
-                                            ? Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  const SpinKitThreeBounce(
-                                                    size: 20.0,
-                                                    color: Colors.black87,
-                                                  ),
-                                                  const SizedBox(height: 10.0),
-                                                  Text("${progressBar.toString()} %",
-                                                    style: const TextStyle(
-                                                      fontSize: 14.0
-                                                    ),
-                                                  )
-                                                ]
-                                              )
-                                            : Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                Image.memory(thumbnail!, height: 100.0),
-                                                const SizedBox(height: 12.0),
-                                                Text("Size : ${filesize(videoSize)}",
-                                                  style: const TextStyle(
-                                                    fontSize: 16.0
-                                                  ),
+                                                  ],
                                                 ),
-                                                const SizedBox(height: 12.0),
-                                                Text("Duration : ${duration!.inHours}:${duration!.inMinutes.remainder(60)}:${(duration!.inSeconds.remainder(60))}",
-                                                  style: const TextStyle(
-                                                    fontSize: 16.0
-                                                  ),
-                                                ),
-                                               const  SizedBox(height: 12.0),
-                                                ElevatedButton(
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      videoSize = null;
-                                                      thumbnail = null;
-                                                      videoCompressInfo = null;
-                                                    });
-                                                  },
-                                                  style: ElevatedButton.styleFrom(
-                                                    primary: Colors.redAccent[200]
-                                                  ),
-                                                  child: const Text("Batal",
-                                                    style: TextStyle(
-                                                      fontSize: 16.0
-                                                    ),
-                                                  )
-                                                )
-                                              ],
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                      ) 
-                                    ),
-                                    
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 16.0, right: 16.0),
-                                      child: TextField(
-                                        controller: msgController,
-                                        cursorColor: Colors.black87,
-                                        style: const TextStyle(
-                                          fontSize: 14.0,
-                                          height: 1.5,
-                                          color: Colors.black87
-                                        ),
-                                        obscureText: false,
-                                        maxLines: 4,
-                                        decoration: InputDecoration(
-                                          prefixIcon: const Icon(
-                                            Icons.message,
-                                            size: 20.0,
-                                            color: Colors.black87,
-                                          ),
-                                          label: const Text("Write a Message",
-                                            style: TextStyle(
-                                              fontSize: 15.0,
-                                              color: Colors.black87
-                                            ),
-                                          ),
-                                          floatingLabelBehavior: FloatingLabelBehavior.auto,
-                                          fillColor: Colors.white,
-                                          filled: true,
-                                          contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-                                          border: OutlineInputBorder(
-                                            borderSide: const BorderSide(
-                                              color: Colors.black87
-                                            ),
-                                            borderRadius: BorderRadius.circular(6.0),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderSide: const BorderSide(
-                                              color: Colors.black87
-                                            ),
-                                            borderRadius: BorderRadius.circular(6.0),
                                           )
-                                        ),
+                                        ],
+                                      ) : isCompressed 
+                                      ? Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const SpinKitThreeBounce(
+                                              size: 20.0,
+                                              color: Colors.black87,
+                                            ),
+                                            const SizedBox(height: 10.0),
+                                            Text("${progressBar.toString()} %",
+                                              style: const TextStyle(
+                                                fontSize: 14.0
+                                              ),
+                                            )
+                                          ]
+                                        )
+                                      : Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                          Image.memory(thumbnail!, height: 100.0),
+                                          const SizedBox(height: 12.0),
+                                          Text("Size : ${filesize(videoSize)}",
+                                            style: const TextStyle(
+                                              fontSize: 16.0
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12.0),
+                                          Text("Duration : ${duration!.inHours}:${duration!.inMinutes.remainder(60)}:${(duration!.inSeconds.remainder(60))}",
+                                            style: const TextStyle(
+                                              fontSize: 16.0
+                                            ),
+                                          ),
+                                          const  SizedBox(height: 12.0),
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                videoSize = null;
+                                                thumbnail = null;
+                                                videoCompressInfo = null;
+                                              });
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              primary: Colors.redAccent[200]
+                                            ),
+                                            child: const Text("Batal",
+                                              style: TextStyle(
+                                                fontSize: 16.0
+                                              ),
+                                            )
+                                          )
+                                        ],
                                       ),
                                     ),
-                        
-                                    Container(
-                                      margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0), 
-                                      child: CustomButton(
-                                        btnTxt: "Submit",
-                                        height: 40.0,
-                                        isBorder: false,
-                                        isBorderRadius: false,
-                                        isBoxShadow: false,
-                                        isLoading: isLoading ? true : false, 
-                                        onTap: () async {
-                                          if(msgController.text.trim().isEmpty) return;
-                                          if(videoCompressInfo == null) return;
-                                          // String newString = p.basename(videoCompressInfo!.path!).replaceAll(p.basename(videoCompressInfo!.path!), '1');
-                                          Reference ref = FirebaseStorage.instance.ref().child('${const Uuid().v4()}.mp4');
-                                          UploadTask task = ref.putFile(File(videoCompressInfo!.path!));
-                                          setState(() {
-                                            isLoading = true;
-                                          });
-                                          String url = await task.then((result) async {
-                                            return await result.ref.getDownloadURL();
-                                          });
-                                          SocketServices.shared.sendMsg(
-                                            id: const Uuid().v4(),
-                                            msg: msgController.text,
-                                            mediaUrl: url
-                                          );
-                                          msgController.text = "";
-                                          setState(() {
-                                            videoCompressInfo = null;
-                                            duration = null;
-                                            videoSize = null;
-                                            thumbnail = null;
-                                            isLoading = false;
-                                          });
-                                        },
+                                  ),
+                                ) 
+                              ),
+                              
+                              Container(
+                                margin: const EdgeInsets.only(left: 16.0, right: 16.0),
+                                child: TextField(
+                                  controller: msgController,
+                                  cursorColor: Colors.black87,
+                                  style: const TextStyle(
+                                    fontSize: 14.0,
+                                    height: 1.5,
+                                    color: Colors.black87
+                                  ),
+                                  obscureText: false,
+                                  maxLines: 4,
+                                  decoration: InputDecoration(
+                                    label: const Text("Message",
+                                      style: TextStyle(
+                                        fontSize: 15.0,
+                                        color: Colors.black87
                                       ),
+                                    ),
+                                    floatingLabelBehavior: FloatingLabelBehavior.auto,
+                                    fillColor: Colors.white,
+                                    filled: true,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+                                    border: OutlineInputBorder(
+                                      borderSide: const BorderSide(
+                                        color: Colors.black87
+                                      ),
+                                      borderRadius: BorderRadius.circular(6.0),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderSide: const BorderSide(
+                                        color: Colors.black87
+                                      ),
+                                      borderRadius: BorderRadius.circular(6.0),
                                     )
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ])
+                                              
+                              Container(
+                                margin: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0), 
+                                child: CustomButton(
+                                  btnTxt: "Submit",
+                                  height: 40.0,
+                                  isBorder: false,
+                                  isBorderRadius: false,
+                                  isBoxShadow: false,
+                                  isLoading: isLoading ? true : false, 
+                                  onTap: () async {
+                                    if(msgController.text.trim().isEmpty) return;
+                                    if(videoCompressInfo == null) return;
+                                    // String newString = p.basename(videoCompressInfo!.path!).replaceAll(p.basename(videoCompressInfo!.path!), '1');
+                                    Reference ref = FirebaseStorage.instance.ref().child('${const Uuid().v4()}.mp4');
+                                    UploadTask task = ref.putFile(File(videoCompressInfo!.path!));
+                                    setState(() {
+                                      isLoading = true;
+                                    });
+                                    String url = await task.then((result) async {
+                                      return await result.ref.getDownloadURL();
+                                    });
+                                    SocketServices.shared.sendMsg(
+                                      id: const Uuid().v4(),
+                                      msg: msgController.text,
+                                      mediaUrl: url
+                                    );
+                                    msgController.text = "";
+                                    setState(() {
+                                      videoCompressInfo = null;
+                                      duration = null;
+                                      videoSize = null;
+                                      thumbnail = null;
+                                      isLoading = false;
+                                    });
+                                  },
+                                ),
+                              )
+                            ],
                           ),
-                        )
+                        ),
+
+                       
                       ],
                     ),
                   );
