@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+
 import 'package:stream_video/providers/network.dart';
 import 'package:stream_video/providers/videos.dart';
 
@@ -12,7 +13,8 @@ class SocketServices {
   late io.Socket socket;
 
   void connect(BuildContext context) {
-    socket = io.io('http://192.168.113.73:3000', <String, dynamic>{
+    // http://192.168.113.73:3000
+    socket = io.io('http://4465-180-244-7-38.ngrok.io', <String, dynamic>{
       "transports": ["websocket"],
       "autoConnect": false
     });    
@@ -59,10 +61,11 @@ class SocketServices {
     });
   }
   
-  void sendMsg({required String msg, required String mediaUrl}) {
+  void sendMsg({required String id, required String msg, required String mediaUrl}) {
     socket.emit("message", jsonEncode({
+      "id": id,
       "mediaUrl": mediaUrl,
-      "message": msg,
+      "msg": msg,
     }));
   }
 

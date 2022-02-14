@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "926273339178",
+    "project_id": "stream-video-d63c6",
+    "storage_bucket": "stream-video-d63c6.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926273339178:android:90dc57b542b252f3e82853",
+        "android_client_info": {
+          "package_name": "com.reihanagam.stream_video"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "926273339178-8j3ujppbvdmalaklrotk03ejefcmrb90.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvXDkADEDGOx6Z1ByWUvcnVaWVF8F3ltk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "926273339178-8j3ujppbvdmalaklrotk03ejefcmrb90.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

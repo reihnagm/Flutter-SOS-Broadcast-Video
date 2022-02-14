@@ -1,20 +1,21 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:stream_video/services/sqlite.dart';
 import 'package:video_player/video_player.dart';
 
 enum ListenVStatus { idle, loading, loaded, empty, error }
 
 class VideoProvider with ChangeNotifier {
-  late VideoPlayerController? videoController;
 
   @override
   void dispose() {
-    videoController!.dispose();
+    for (var vi in v) {
+      VideoPlayerController vpc = vi["video"];
+      vpc.dispose(); 
+    }
     super.dispose();
   }
 
-  final List _v = [];
+  List _v = [];
   List get v => [..._v]; 
 
   ListenVStatus _listenVStatus = ListenVStatus.idle;
@@ -25,20 +26,51 @@ class VideoProvider with ChangeNotifier {
     Future.delayed(Duration.zero, () => notifyListeners());
   }
 
-  void listenV(BuildContext context, [dynamic data]) {
+  Future<void> listenV(BuildContext context, [dynamic data]) async {
+    setStateListenVStatus(ListenVStatus.loading);
     if(data != null) {
-      videoController = VideoPlayerController.file(File(data["mediaUrl"]))
-      ..addListener(() => notifyListeners())
-      ..setLooping(false)
-      ..initialize().then((_) => videoController!.pause());
-      _v.add({
-        "msg": data["message"],
-        "mediaUrl": data["mediaUrl"]
+      await DBHelper.insert("sos", {
+        "id": data["id"],
+        "mediaUrl": data["mediaUrl"],
+        "msg": data["msg"]
       });
+      _v.insert(0, {
+        "id": data["id"],
+        "video": VideoPlayerController.network(data["mediaUrl"])
+        ..addListener(() => notifyListeners())
+        ..setLooping(false)
+        ..initialize(),
+        "msg": data["msg"],
+      });
+    } else {
+      List<Map<String, dynamic>> listSos = await DBHelper.fetchSos(context);
+      List<Map<String, dynamic>> sosAssign = [];
+      for (var sos in listSos) {
+        sosAssign.add({
+          "id": sos["id"],
+          "video": VideoPlayerController.network(sos["mediaUrl"])
+          ..addListener(() => notifyListeners())
+          ..setLooping(false)
+          ..initialize(),
+          "msg":sos["msg"],
+        });
+      }
+      _v.addAll(sosAssign);
     }
     setStateListenVStatus(ListenVStatus.loaded);
     if(v.isEmpty) {
       setStateListenVStatus(ListenVStatus.empty);
+    }
+  }
+
+  Future<void> deleteV(BuildContext context, {required String id}) async {
+    try {
+      await DBHelper.delete("sos", id);
+      _v.removeWhere((el) => el["id"] == id);
+      Future.delayed(Duration.zero, () => notifyListeners());
+      setStateListenVStatus(ListenVStatus.loaded);
+    } catch(e) {
+      debugPrint(e.toString());
     }
   }
 

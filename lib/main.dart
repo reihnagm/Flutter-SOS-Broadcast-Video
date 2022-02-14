@@ -2,27 +2,36 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
+import 'package:gallery_saver/gallery_saver.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:dotted_decoration/dotted_decoration.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:filesize/filesize.dart';
+import 'package:uuid/uuid.dart';
+import 'package:video_compress/video_compress.dart';
+import 'package:video_player/video_player.dart';
+
 import 'package:stream_video/providers.dart';
 import 'package:stream_video/providers/network.dart';
 import 'package:stream_video/providers/videos.dart';
 import 'package:stream_video/services/socket.dart';
-
 import 'package:stream_video/basewidgets/button/custom.dart';
 import 'package:stream_video/container.dart' as core;
 import 'package:stream_video/services/video.dart';
-import 'package:video_compress/video_compress.dart';
-import 'package:video_player/video_player.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await core.init();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -49,30 +58,292 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, TickerProviderStateMixin {
   dynamic currentBackPressTime;
+  late Subscription subscription;
   late TextEditingController msgController;
+  bool isLoading = false;
   bool isCompressed = false;
   Uint8List? thumbnail;
-  String? title;
   File? file;
   File? fx;
   MediaInfo? videoCompressInfo;
   Duration? duration;
+  double? progress;
   int? videoSize;
+  CameraController? controller;
+  XFile? imageFile;
+  XFile? videoFile;
+  VideoPlayerController? videoController;
+  VoidCallback? videoPlayerListener;
+  bool enableAudio = true;
+
+  double _baseScale = 1.0;
+  final double _minAvailableZoom = 1.0;
+  final double _maxAvailableZoom = 1.0;
+  double _currentScale = 1.0;
+
+  int _pointers = 0;
+
+  Future<void> _onInitCamera() async {
+    if (controller != null) {
+      await controller!.dispose();
+    }
+
+    final CameraController cameraController = CameraController(
+      const CameraDescription(
+        name: "0", 
+        lensDirection: CameraLensDirection.back, 
+        sensorOrientation: 90
+      ),
+      kIsWeb ? ResolutionPreset.max : ResolutionPreset.medium,
+      enableAudio: enableAudio,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+
+    controller = cameraController;
+
+    cameraController.addListener(() {
+      if (mounted) setState(() {});
+      if (cameraController.value.hasError) {
+        showInSnackBar('Camera error ${cameraController.value.errorDescription}');
+      }
+    });
+
+    try {
+      await cameraController.initialize();
+      await cameraController.startVideoRecording();
+    } on CameraException catch (e) {
+      _showCameraException(e);
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void onNewCameraSelected(CameraDescription cameraDescription) async {
+    if (controller != null) {
+      await controller!.dispose();
+    }
+
+    final CameraController cameraController = CameraController(
+      cameraDescription,
+      kIsWeb ? ResolutionPreset.max : ResolutionPreset.medium,
+      enableAudio: enableAudio,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+
+    controller = cameraController;
+
+    cameraController.addListener(() {
+      if (mounted) setState(() {});
+      if (cameraController.value.hasError) {
+        showInSnackBar('Camera error ${cameraController.value.errorDescription}');
+      }
+    });
+
+    try {
+      await cameraController.initialize();
+    } on CameraException catch (e) {
+      _showCameraException(e);
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void showInSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void onViewFinderTap(TapDownDetails details, BoxConstraints constraints) {
+    if (controller == null) {
+      return;
+    }
+
+    final CameraController cameraController = controller!;
+
+    final offset = Offset(
+      details.localPosition.dx / constraints.maxWidth,
+      details.localPosition.dy / constraints.maxHeight,
+    );
+    cameraController.setExposurePoint(offset);
+    cameraController.setFocusPoint(offset);
+  }
+
+  Future<void> onVideoRecordButtonPressed() async {
+    startVideoRecording().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<XFile?> onStopButtonPressed(BuildContext ctx) async {
+    XFile? xfile = await stopVideoRecording();
+    if (xfile != null) {
+      Navigator.of(context).pop();
+      File f = File(xfile.path);
+      if(mounted) {
+        setState(() {
+          isCompressed = true;
+          file = File(f.path);
+        });
+      }
+      await generateThumbnail(file!);
+      await getVideoSize(file!);
+      await GallerySaver.saveVideo(file!.path);
+      final info = await VideoServices.compressVideo(file!);
+      if(mounted) {
+        setState(() {
+          isCompressed = false;
+          videoCompressInfo = info;
+          duration = Duration(microseconds: (videoCompressInfo!.duration! * 1000).toInt());
+        });
+      }
+      File(file!.path).deleteSync();  
+    }
+  }
+
+  Future<void> startVideoRecording() async {
+    final CameraController? cameraController = controller;
+
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      showInSnackBar('Error: select a camera first.');
+      return;
+    }
+
+    if (cameraController.value.isRecordingVideo) {
+      return;
+    }
+
+    try {
+      await cameraController.startVideoRecording();
+    } on CameraException catch (e) {
+      _showCameraException(e);
+      return;
+    }
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _baseScale = _currentScale;
+  }
+
+  Future<void> _handleScaleUpdate(ScaleUpdateDetails details) async {
+    if (controller == null || _pointers != 2) {
+      return;
+    }
+    _currentScale = (_baseScale * details.scale).clamp(_minAvailableZoom, _maxAvailableZoom);
+    await controller!.setZoomLevel(_currentScale);
+  }
+
+  Future<XFile?> stopVideoRecording() async {
+    final CameraController? cameraController = controller;
+
+    if (cameraController == null || !cameraController.value.isRecordingVideo) {
+      return null;
+    }
+
+    try {
+      return cameraController.stopVideoRecording();
+    } on CameraException catch (e) {
+      _showCameraException(e);
+      return null;
+    }
+  }
+
+  Future<void> pauseVideoRecording() async {
+    final CameraController? cameraController = controller;
+
+    if (cameraController == null || !cameraController.value.isRecordingVideo) {
+      return;
+    }
+
+    try {
+      await cameraController.pauseVideoRecording();
+    } on CameraException catch (e) {
+      _showCameraException(e);
+      rethrow;
+    }
+  }
+
+  Future<void> resumeVideoRecording() async {
+    final CameraController? cameraController = controller;
+
+    if (cameraController == null || !cameraController.value.isRecordingVideo) {
+      return;
+    }
+
+    try {
+      await cameraController.resumeVideoRecording();
+    } on CameraException catch (e) {
+      _showCameraException(e);
+      rethrow;
+    }
+  }
+
+  void _showCameraException(CameraException e) {
+    showInSnackBar('Error: ${e.code}\n${e.description}');
+  }
+
+  Widget _cameraPreviewWidget() {
+    final CameraController? cameraController = controller;
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return Container();
+    } else {
+      return Listener(
+        onPointerDown: (_) => _pointers++,
+        onPointerUp: (_) => _pointers--,
+        child: CameraPreview(
+          controller!,
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: _handleScaleStart,
+              onScaleUpdate: _handleScaleUpdate,
+              onTapDown: (details) => onViewFinderTap(details, constraints),
+            );
+          }),
+        ),
+      );
+    }
+  }
   
   @override 
   void initState() {
     super.initState();
     msgController = TextEditingController();
-    context.read<VideoProvider>().listenV(context);
-    context.read<NetworkProvider>().checkConnection(context);
-    SocketServices.shared.connect(context);
+    if(mounted) {
+      subscription = VideoCompress.compressProgress$.subscribe((event) {
+        setState(() {
+          progress = event;
+        }); 
+      });
+    }
+    if(mounted) {
+      context.read<VideoProvider>().listenV(context);
+    }
+    if(mounted) {
+      context.read<NetworkProvider>().checkConnection(context);
+    }
+    if(mounted) {
+      SocketServices.shared.connect(context);
+    }
+    (() async {
+      PermissionStatus status = await Permission.storage.status;
+      if(!status.isGranted) {
+        await Permission.storage.request();
+      } 
+    });
+    _onInitCamera();
+    _ambiguate(WidgetsBinding.instance)?.addObserver(this);
   }
 
   @override 
   void dispose() {
+    _ambiguate(WidgetsBinding.instance)?.removeObserver(this);
     msgController.dispose();
+    subscription.unsubscribe();
+    VideoCompress.cancelCompression();
     SocketServices.shared.dispose();
     super.dispose();
   }
@@ -91,9 +362,9 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
- 
   @override
   Widget build(BuildContext context) {
+    final progressBar = progress == null ? 0 : (progress!).toInt(); 
     return WillPopScope(
       onWillPop: () {
         DateTime now = DateTime.now();
@@ -156,6 +427,14 @@ class _MyHomePageState extends State<MyHomePage> {
                                       margin: const EdgeInsets.only(left: 16.0, right: 16.0, top: 80.0, bottom: 80.0),
                                       child: Consumer<VideoProvider>(
                                         builder: (BuildContext context, VideoProvider videoProvider, Widget? child) {
+                                          if(videoProvider.listenVStatus == ListenVStatus.loading) {
+                                            return const Center(
+                                              child: SpinKitThreeBounce(
+                                                size: 20.0,
+                                                color: Colors.black87,
+                                              ),
+                                            );
+                                          }
                                           if(videoProvider.v.isEmpty) {
                                             return const Text("There is no Videos",
                                               style: TextStyle(
@@ -169,6 +448,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                             padding: EdgeInsets.zero,
                                             itemCount: videoProvider.v.length,
                                             itemBuilder: (BuildContext context, int i) {
+                                              VideoPlayerController? vid = videoProvider.v[i]["video"];
                                               return Container(
                                                 margin: const EdgeInsets.only(bottom: 5.0),
                                                 child: Card(
@@ -177,24 +457,24 @@ class _MyHomePageState extends State<MyHomePage> {
                                                     child: Column( 
                                                       children: [
                         
-                                                        videoProvider.videoController != null && videoProvider.videoController!.value.isInitialized
+                                                        vid != null && vid.value.isInitialized
                                                         ? Container(
                                                             alignment: Alignment.topCenter, 
                                                             child: Stack(
                                                               children: [
                                                                 AspectRatio(
-                                                                  aspectRatio: videoProvider.videoController!.value.aspectRatio,
-                                                                  child: VideoPlayer(videoProvider.videoController!),
+                                                                  aspectRatio: vid.value.aspectRatio,
+                                                                  child: VideoPlayer(vid),
                                                                 ),
                                                                 Positioned.fill(
                                                                   child: GestureDetector(
                                                                     behavior: HitTestBehavior.opaque,
-                                                                    onTap: () =>    videoProvider.videoController! .value.isPlaying 
-                                                                    ? videoProvider.videoController!.pause() 
-                                                                    : videoProvider.videoController!.play(),
+                                                                    onTap: () => vid.value.isPlaying 
+                                                                    ? vid.pause() 
+                                                                    : vid.play(),
                                                                     child: Stack(
                                                                       children: [
-                                                                        videoProvider.videoController!.value.isPlaying 
+                                                                        vid.value.isPlaying 
                                                                         ? Container() 
                                                                         : Container(
                                                                             alignment: Alignment.center,
@@ -209,7 +489,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                                                           left: 0.0,
                                                                           right: 0.0,
                                                                           child: VideoProgressIndicator(
-                                                                            videoProvider.videoController!,
+                                                                            vid,
                                                                             allowScrubbing: true,
                                                                           )
                                                                         ),
@@ -229,14 +509,49 @@ class _MyHomePageState extends State<MyHomePage> {
                                                         ),
                         
                                                         Container(
-                                                          margin: const EdgeInsets.only(top: 12.0, bottom: 12.0),
+                                                          margin: const EdgeInsets.only(top: 15.0, bottom: 15.0),
                                                           child: Center(
-                                                            child: Text(videoProvider.v[i]["msg"].toString(),
-                                                              style: const TextStyle(
-                                                                fontSize: 16.0,
-                                                                fontWeight: FontWeight.bold
-                                                              ),
-                                                            ),
+                                                            child: Column(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Row(
+                                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                                  children: [
+                                                                    Expanded(
+                                                                      flex: 4,
+                                                                      child: Text(videoProvider.v[i]["msg"].toString(),
+                                                                        style: const TextStyle(
+                                                                          fontSize: 16.0,
+                                                                          fontWeight: FontWeight.bold
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                    Expanded(
+                                                                      flex: 1,
+                                                                      child: Material(
+                                                                        color: Colors.transparent,
+                                                                        child: InkWell(
+                                                                          onTap: () {
+                                                                            videoProvider.deleteV(
+                                                                              context, 
+                                                                              id: videoProvider.v[i]["id"].toString()
+                                                                            );
+                                                                          },
+                                                                          child: const Padding(
+                                                                            padding: EdgeInsets.all(8.0),
+                                                                            child: Icon(
+                                                                              Icons.remove_circle,
+                                                                              color: Colors.redAccent,
+                                                                              size: 30.0,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                )
+                                                              ],
+                                                            ) 
                                                           ),
                                                         )
                         
@@ -277,31 +592,133 @@ class _MyHomePageState extends State<MyHomePage> {
                                             setState(() {
                                               isCompressed = false;
                                               videoCompressInfo = info;
-                                              title = videoCompressInfo!.title!;
                                               duration = Duration(microseconds: (videoCompressInfo!.duration! * 1000).toInt());
                                             });
                                           },
                                           child: Padding(
                                             padding: const EdgeInsets.all(30.0),
-                                            child: videoSize == null && thumbnail == null ? Column(
-                                              children: const [
-                                                Icon(
-                                                  Icons.video_call,
-                                                  size: 20.0,
-                                                  color: Colors.black87,
-                                                ),
-                                                SizedBox(height: 5.0),
-                                                Text("Browse a Video",
-                                                  style: TextStyle(
-                                                    fontSize: 16.0
+                                            child: videoSize == null && thumbnail == null ? Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Expanded(
+                                                  child: Column(
+                                                    children: const [
+                                                      Icon(
+                                                        Icons.video_call,
+                                                        size: 20.0,
+                                                        color: Colors.black87,
+                                                      ),
+                                                      SizedBox(height: 5.0),
+                                                      Text("Browse a Video",
+                                                        style: TextStyle(
+                                                          fontSize: 16.0
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
+                                                Expanded(
+                                                  child: Material(
+                                                    color: Colors.transparent,
+                                                    child: InkWell(
+                                                      onTap: () {
+                                                        Navigator.push(context,
+                                                          PageRouteBuilder(pageBuilder: (context, animation, secondaryAnimation) {
+                                                            return Scaffold(
+                                                              key: UniqueKey(),
+                                                              body: SafeArea(
+                                                                child: Stack(
+                                                                  clipBehavior: Clip.none,
+                                                                  children: [
+
+                                                                    Container(
+                                                                      padding: const EdgeInsets.all(1.0),
+                                                                      width: double.infinity,
+                                                                      height: double.infinity,
+                                                                      decoration: BoxDecoration(
+                                                                        color: Colors.black,
+                                                                        border: Border.all(
+                                                                          color: controller != null && controller!.value.isRecordingVideo
+                                                                          ? Colors.redAccent
+                                                                          : Colors.grey,
+                                                                          width: 3.0,
+                                                                        ),
+                                                                      ),
+                                                                      child: _cameraPreviewWidget()
+                                                                    ),
+                                                                    
+                                                                    Align(
+                                                                      alignment: Alignment.center,
+                                                                      child: Container(
+                                                                        padding: const EdgeInsets.all(5.0),
+                                                                        decoration: const BoxDecoration(
+                                                                          color: Colors.white,
+                                                                          shape: BoxShape.circle
+                                                                        ),
+                                                                        child: IconButton(
+                                                                          icon: const Icon(Icons.stop),
+                                                                          color: Colors.red,
+                                                                          onPressed: controller != null &&
+                                                                          controller!.value.isInitialized &&
+                                                                          controller!.value.isRecordingVideo
+                                                                          ? () => onStopButtonPressed(context)
+                                                                          : null,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                                            const begin = Offset(-1.0, 0.0);
+                                                            const end = Offset.zero;
+                                                            const curve = Curves.ease;
+                                                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                                                            return SlideTransition(
+                                                              position: animation.drive(tween),
+                                                              child: child,
+                                                            );
+                                                          })
+                                                        );
+                                                      },
+                                                      child: Column(
+                                                        children: const [
+                                                          Icon(
+                                                            Icons.videocam,
+                                                            size: 20.0,
+                                                            color: Colors.black87,
+                                                          ),
+                                                          SizedBox(height: 5.0),
+                                                          Text("Record a Video",
+                                                            style: TextStyle(
+                                                              fontSize: 16.0
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                )
                                               ],
                                             ) : isCompressed 
-                                            ? const SpinKitThreeBounce(
-                                                size: 20.0,
-                                                color: Colors.black87,
-                                              ) 
+                                            ? Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const SpinKitThreeBounce(
+                                                    size: 20.0,
+                                                    color: Colors.black87,
+                                                  ),
+                                                  const SizedBox(height: 10.0),
+                                                  Text("${progressBar.toString()} %",
+                                                    style: const TextStyle(
+                                                      fontSize: 14.0
+                                                    ),
+                                                  )
+                                                ]
+                                              )
                                             : Column(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
@@ -317,6 +734,24 @@ class _MyHomePageState extends State<MyHomePage> {
                                                   style: const TextStyle(
                                                     fontSize: 16.0
                                                   ),
+                                                ),
+                                               const  SizedBox(height: 12.0),
+                                                ElevatedButton(
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      videoSize = null;
+                                                      thumbnail = null;
+                                                      videoCompressInfo = null;
+                                                    });
+                                                  },
+                                                  style: ElevatedButton.styleFrom(
+                                                    primary: Colors.redAccent[200]
+                                                  ),
+                                                  child: const Text("Batal",
+                                                    style: TextStyle(
+                                                      fontSize: 16.0
+                                                    ),
+                                                  )
                                                 )
                                               ],
                                             ),
@@ -377,16 +812,35 @@ class _MyHomePageState extends State<MyHomePage> {
                                         isBorder: false,
                                         isBorderRadius: false,
                                         isBoxShadow: false,
-                                        onTap: () {
+                                        isLoading: isLoading ? true : false, 
+                                        onTap: () async {
                                           if(msgController.text.trim().isEmpty) return;
                                           if(videoCompressInfo == null) return;
-                                          debugPrint( videoCompressInfo!.file!.path);
-                                          SocketServices.shared.sendMsg(msg: msgController.text, mediaUrl: videoCompressInfo!.path!);
+                                          // String newString = p.basename(videoCompressInfo!.path!).replaceAll(p.basename(videoCompressInfo!.path!), '1');
+                                          Reference ref = FirebaseStorage.instance.ref().child('${const Uuid().v4()}.mp4');
+                                          UploadTask task = ref.putFile(File(videoCompressInfo!.path!));
+                                          setState(() {
+                                            isLoading = true;
+                                          });
+                                          String url = await task.then((result) async {
+                                            return await result.ref.getDownloadURL();
+                                          });
+                                          SocketServices.shared.sendMsg(
+                                            id: const Uuid().v4(),
+                                            msg: msgController.text,
+                                            mediaUrl: url
+                                          );
                                           msgController.text = "";
+                                          setState(() {
+                                            videoCompressInfo = null;
+                                            duration = null;
+                                            videoSize = null;
+                                            thumbnail = null;
+                                            isLoading = false;
+                                          });
                                         },
                                       ),
                                     )
-                        
                                   ],
                                 ),
                               ),
@@ -406,3 +860,5 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
+T? _ambiguate<T>(T? value) => value;

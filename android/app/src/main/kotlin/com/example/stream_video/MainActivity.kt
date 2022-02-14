@@ -1,4 +1,4 @@
-package com.example.stream_video
+package com.reihanagam.stream_video
 
 import io.flutter.embedding.android.FlutterActivity
 
