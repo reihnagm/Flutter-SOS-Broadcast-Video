@@ -14,6 +14,8 @@ class SocketServices {
 
   void connect(BuildContext context) {
     // http://192.168.113.73:3000
+    // http://192.168.43.17:3000
+    // http://cxid.xyz:3000
     socket = io.io('http://cxid.xyz:3000', <String, dynamic>{
       "transports": ["websocket"],
       "autoConnect": false

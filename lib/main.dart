@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
+
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:gallery_saver/gallery_saver.dart';
@@ -16,6 +18,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:filesize/filesize.dart';
+import 'package:stream_broadcast_sos/providers/location.dart';
 import 'package:uuid/uuid.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
@@ -72,11 +75,8 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
   double? progress;
   int? videoSize;
   CameraController? controller;
-  XFile? imageFile;
   XFile? videoFile;
   VideoPlayerController? videoController;
-  VoidCallback? videoPlayerListener;
-  bool enableAudio = true;
 
   double _baseScale = 1.0;
   final double _minAvailableZoom = 1.0;
@@ -97,39 +97,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
         sensorOrientation: 90
       ),
       kIsWeb ? ResolutionPreset.max : ResolutionPreset.medium,
-      enableAudio: enableAudio,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-
-    controller = cameraController;
-
-    cameraController.addListener(() {
-      if (mounted) setState(() {});
-      if (cameraController.value.hasError) {
-        showInSnackBar('Camera error ${cameraController.value.errorDescription}');
-      }
-    });
-
-    try {
-      await cameraController.initialize();
-      await cameraController.startVideoRecording();
-    } on CameraException catch (e) {
-      _showCameraException(e);
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void onNewCameraSelected(CameraDescription cameraDescription) async {
-    if (controller != null) {
-      await controller!.dispose();
-    }
-
-    final CameraController cameraController = CameraController(
-      cameraDescription,
-      kIsWeb ? ResolutionPreset.max : ResolutionPreset.medium,
-      enableAudio: enableAudio,
+      enableAudio: true,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
@@ -250,35 +218,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     }
   }
 
-  Future<void> pauseVideoRecording() async {
-    final CameraController? cameraController = controller;
-
-    if (cameraController == null || !cameraController.value.isRecordingVideo) {
-      return;
-    }
-
-    try {
-      await cameraController.pauseVideoRecording();
-    } on CameraException catch (e) {
-      _showCameraException(e);
-      rethrow;
-    }
-  }
-
-  Future<void> resumeVideoRecording() async {
-    final CameraController? cameraController = controller;
-
-    if (cameraController == null || !cameraController.value.isRecordingVideo) {
-      return;
-    }
-
-    try {
-      await cameraController.resumeVideoRecording();
-    } on CameraException catch (e) {
-      _showCameraException(e);
-      rethrow;
-    }
-  }
+ 
 
   void _showCameraException(CameraException e) {
     showInSnackBar('Error: ${e.code}\n${e.description}');
@@ -307,13 +247,23 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       );
     }
   }
+
+  @override 
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if(mounted) {
+      context.read<NetworkProvider>().checkConnection(context);
+    }
+  }
   
   @override 
   void initState() {
     super.initState();
+    _onInitCamera();
+    _ambiguate(WidgetsBinding.instance)?.addObserver(this);
     (() async {
-      PermissionStatus status = await Permission.storage.status;
-      if(!status.isGranted) {
+      PermissionStatus permissionStorage = await Permission.storage.status;
+      if(!permissionStorage.isGranted) {
         await Permission.storage.request();
       } 
     });
@@ -326,22 +276,18 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       });
     }
     if(mounted) {
-      context.read<VideoProvider>().listenV(context);
-    }
-    if(mounted) {
-      context.read<NetworkProvider>().checkConnection(context);
+      context.read<LocationProvider>().getCurrentPosition(context);
     }
     if(mounted) {
       SocketServices.shared.connect(context);
     }
-    _onInitCamera();
-    _ambiguate(WidgetsBinding.instance)?.addObserver(this);
   }
 
   @override 
   void dispose() {
     _ambiguate(WidgetsBinding.instance)?.removeObserver(this);
     msgController.dispose();
+    controller!.dispose();
     subscription!.unsubscribe();
     VideoCompress.cancelCompression();
     SocketServices.shared.dispose();
@@ -636,7 +582,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                         color: Colors.black87
                                       ),
                                     ),
-                                    floatingLabelBehavior: FloatingLabelBehavior.auto,
+                                    floatingLabelBehavior: FloatingLabelBehavior.always,
                                     fillColor: Colors.white,
                                     filled: true,
                                     contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
@@ -668,27 +614,28 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                   onTap: () async {
                                     if(msgController.text.trim().isEmpty) return;
                                     if(videoCompressInfo == null) return;
-                                    // String newString = p.basename(videoCompressInfo!.path!).replaceAll(p.basename(videoCompressInfo!.path!), '1');
-                                    Reference ref = FirebaseStorage.instance.ref().child('${const Uuid().v4()}.mp4');
-                                    UploadTask task = ref.putFile(File(videoCompressInfo!.path!));
+                                    // Reference ref = FirebaseStorage.instance.ref().child('${const Uuid().v4()}.mp4');
+                                    // UploadTask task = ref.putFile(File(videoCompressInfo!.path!));
                                     setState(() {
                                       isLoading = true;
                                     });
-                                    String url = await task.then((result) async {
-                                      return await result.ref.getDownloadURL();
-                                    });
+                                    // String url = await task.then((result) async {
+                                    //   return await result.ref.getDownloadURL();
+                                    // });
+                                    // String url = p.basename(videoCompressInfo!.path!);
+                                    String? url = await context.read<VideoProvider>().uploadVideo(file: videoCompressInfo!.file!);
                                     SocketServices.shared.sendMsg(
                                       id: const Uuid().v4(),
                                       msg: msgController.text,
-                                      mediaUrl: url
+                                      mediaUrl: url!
                                     );
                                     msgController.text = "";
                                     setState(() {
+                                      isLoading = false;
                                       videoCompressInfo = null;
                                       duration = null;
                                       videoSize = null;
                                       thumbnail = null;
-                                      isLoading = false;
                                     });
                                   },
                                 ),
@@ -696,8 +643,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                             ],
                           ),
                         ),
-
-                       
                       ],
                     ),
                   );

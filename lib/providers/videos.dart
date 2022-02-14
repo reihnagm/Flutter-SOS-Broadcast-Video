@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:stream_broadcast_sos/services/sqlite.dart';
+import 'package:dio/dio.dart';
+import 'package:path/path.dart';
 import 'package:video_player/video_player.dart';
+
+import 'package:stream_broadcast_sos/services/sqlite.dart';
 
 enum ListenVStatus { idle, loading, loaded, empty, error }
 
@@ -15,7 +20,7 @@ class VideoProvider with ChangeNotifier {
     super.dispose();
   }
 
-  final List _v = [];
+  List _v = [];
   List get v => [..._v]; 
 
   ListenVStatus _listenVStatus = ListenVStatus.idle;
@@ -27,6 +32,7 @@ class VideoProvider with ChangeNotifier {
   }
 
   Future<void> listenV(BuildContext context, [dynamic data]) async {
+    _v = [];
     setStateListenVStatus(ListenVStatus.loading);
     if(data != null) {
       await DBHelper.insert("sos", {
@@ -34,14 +40,17 @@ class VideoProvider with ChangeNotifier {
         "mediaUrl": data["mediaUrl"],
         "msg": data["msg"]
       });
-      _v.insert(0, {
-        "id": data["id"],
-        "video": VideoPlayerController.network(data["mediaUrl"])
-        ..addListener(() => notifyListeners())
-        ..setLooping(false)
-        ..initialize(),
-        "msg": data["msg"],
-      });
+      List<Map<String, dynamic>> listSos = await DBHelper.fetchSos(context);
+      for (var sos in listSos) {
+        _v.add({
+          "id": sos["id"],
+          "video": VideoPlayerController.network(sos["mediaUrl"])
+          ..addListener(() => notifyListeners())
+          ..setLooping(false)
+          ..initialize(),
+          "msg": sos["msg"],
+        });
+      }
     } else {
       List<Map<String, dynamic>> listSos = await DBHelper.fetchSos(context);
       List<Map<String, dynamic>> sosAssign = [];
@@ -55,7 +64,7 @@ class VideoProvider with ChangeNotifier {
           "msg":sos["msg"],
         });
       }
-      _v.addAll(sosAssign);
+      _v = sosAssign;
     }
     setStateListenVStatus(ListenVStatus.loaded);
     if(v.isEmpty) {
@@ -68,10 +77,31 @@ class VideoProvider with ChangeNotifier {
       await DBHelper.delete("sos", id);
       _v.removeWhere((el) => el["id"] == id);
       Future.delayed(Duration.zero, () => notifyListeners());
-      setStateListenVStatus(ListenVStatus.loaded);
     } catch(e) {
       debugPrint(e.toString());
     }
+  }
+
+  Future<String?> uploadVideo({required File file}) async {
+    try {
+      Dio dio = Dio();
+      FormData formData = FormData.fromMap({
+        "video": await MultipartFile.fromFile(
+          file.path, 
+          filename: basename(file.path)
+        ),
+      });
+      Response res = await dio.post("http://cxid.xyz:3000/upload", data: formData);
+      Map<String, dynamic> data = res.data;
+      String url = data["url"];
+      return url;
+    } on DioError catch(e) {
+      if(e.response!.statusCode == 400 || e.response!.statusCode == 404 || e.response!.statusCode == 500 || e.response!.statusCode == 502) {
+        debugPrint("(${e.response!.statusCode}) : Upload Video");
+      }
+    } catch(e) {
+      debugPrint(e.toString());
+    } 
   }
 
 }
