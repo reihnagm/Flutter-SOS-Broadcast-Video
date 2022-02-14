@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:stream_video/basewidgets/button/bounce.dart';
+import 'package:stream_broadcast_sos/basewidgets/button/bounce.dart';
 
 class CustomButton extends StatelessWidget {
   final Function() onTap;

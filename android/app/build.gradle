@@ -43,7 +43,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.reihanagam.stream_video"
+        applicationId "com.reihanagam.stream_broadcast_sos"
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()

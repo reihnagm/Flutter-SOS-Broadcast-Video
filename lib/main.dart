@@ -20,13 +20,13 @@ import 'package:uuid/uuid.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 
-import 'package:stream_video/providers.dart';
-import 'package:stream_video/providers/network.dart';
-import 'package:stream_video/providers/videos.dart';
-import 'package:stream_video/services/socket.dart';
-import 'package:stream_video/basewidgets/button/custom.dart';
-import 'package:stream_video/container.dart' as core;
-import 'package:stream_video/services/video.dart';
+import 'package:stream_broadcast_sos/providers.dart';
+import 'package:stream_broadcast_sos/providers/network.dart';
+import 'package:stream_broadcast_sos/providers/videos.dart';
+import 'package:stream_broadcast_sos/services/socket.dart';
+import 'package:stream_broadcast_sos/basewidgets/button/custom.dart';
+import 'package:stream_broadcast_sos/container.dart' as core;
+import 'package:stream_broadcast_sos/services/video.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +60,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, TickerProviderStateMixin {
   dynamic currentBackPressTime;
-  late Subscription subscription;
+  late Subscription? subscription;
   late TextEditingController msgController;
   bool isLoading = false;
   bool isCompressed = false;
@@ -311,6 +311,12 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
   @override 
   void initState() {
     super.initState();
+    (() async {
+      PermissionStatus status = await Permission.storage.status;
+      if(!status.isGranted) {
+        await Permission.storage.request();
+      } 
+    });
     msgController = TextEditingController();
     if(mounted) {
       subscription = VideoCompress.compressProgress$.subscribe((event) {
@@ -328,12 +334,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     if(mounted) {
       SocketServices.shared.connect(context);
     }
-    (() async {
-      PermissionStatus status = await Permission.storage.status;
-      if(!status.isGranted) {
-        await Permission.storage.request();
-      } 
-    });
     _onInitCamera();
     _ambiguate(WidgetsBinding.instance)?.addObserver(this);
   }
@@ -342,7 +342,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
   void dispose() {
     _ambiguate(WidgetsBinding.instance)?.removeObserver(this);
     msgController.dispose();
-    subscription.unsubscribe();
+    subscription!.unsubscribe();
     VideoCompress.cancelCompression();
     SocketServices.shared.dispose();
     super.dispose();
@@ -414,8 +414,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                     child: CustomScrollView(
                       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                       slivers: [
-                     
-
+                    
                         SliverFillRemaining(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,

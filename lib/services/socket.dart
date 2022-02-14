@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
-import 'package:stream_video/providers/network.dart';
-import 'package:stream_video/providers/videos.dart';
+import 'package:stream_broadcast_sos/providers/network.dart';
+import 'package:stream_broadcast_sos/providers/videos.dart';
 
 class SocketServices {
   static final shared = SocketServices();
@@ -14,7 +14,7 @@ class SocketServices {
 
   void connect(BuildContext context) {
     // http://192.168.113.73:3000
-    socket = io.io('http://5f2d-180-244-7-38.ngrok.io', <String, dynamic>{
+    socket = io.io('http://cxid.xyz:3000', <String, dynamic>{
       "transports": ["websocket"],
       "autoConnect": false
     });    

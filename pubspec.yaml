@@ -1,4 +1,4 @@
-name: stream_video
+name: stream_broadcast_sos
 description: Stream Video.
 
 publish_to: 'none'

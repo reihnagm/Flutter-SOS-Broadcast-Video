@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:stream_video/services/sqlite.dart';
+import 'package:stream_broadcast_sos/services/sqlite.dart';
 import 'package:video_player/video_player.dart';
 
 enum ListenVStatus { idle, loading, loaded, empty, error }

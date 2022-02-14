@@ -3,7 +3,7 @@
 // import 'package:connectivity_plus/connectivity_plus.dart';
 // import 'package:flutter/material.dart';
 // import 'package:lottie/lottie.dart';
-// import 'package:stream_video/services/socket.dart';
+// import 'package:stream_broadcast_sos/services/socket.dart';
 
 // enum ConnectionStatus { onInternet, offInternet}
 

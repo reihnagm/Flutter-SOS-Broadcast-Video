@@ -1,6 +1,6 @@
 {
-    "name": "stream_video",
-    "short_name": "stream_video",
+    "name": "stream_broadcast_sos",
+    "short_name": "stream_broadcast_sos",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
