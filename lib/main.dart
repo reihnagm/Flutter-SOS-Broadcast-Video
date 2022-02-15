@@ -469,7 +469,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                                       return WillPopScope(
                                                         onWillPop: () {
                                                           timer!.cancel();
-                                                          customTimercontroller.reset();
+                                                          // customTimercontroller.reset();
                                                           return Future.value(true);
                                                         },
                                                         child: Scaffold(

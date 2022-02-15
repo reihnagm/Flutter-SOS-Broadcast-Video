@@ -80,6 +80,6 @@ class SocketServices {
   }
 
   void dispose() {
-    socket.dispose();
+    socket.clearListeners();
   }
 }
