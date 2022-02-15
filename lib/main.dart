@@ -89,16 +89,16 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
 
   int _pointers = 0;
 
-  Future<void> _onInitCamera() async {
+  Future<void> onInitCamera() async {
     if (controller != null) {
       await controller!.dispose();
     }
 
-    final CameraController cameraController = CameraController(
+    CameraController cameraController = CameraController(
       const CameraDescription(
         name: "0", 
         lensDirection: CameraLensDirection.back, 
-        sensorOrientation: 90
+        sensorOrientation: 90,
       ),
       kIsWeb ? ResolutionPreset.max : ResolutionPreset.medium,
       enableAudio: true,
@@ -164,6 +164,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       await getVideoSize(file!);
       await GallerySaver.saveVideo(file!.path);
       final info = await VideoServices.compressVideo(file!);
+      debugPrint(info!.path.toString());
       if(mounted) {
         setState(() {
           isCompressed = false;
@@ -227,8 +228,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
   }
 
   Widget _cameraPreviewWidget() {
-    final CameraController? cameraController = controller;
-    if (cameraController == null || !cameraController.value.isInitialized) {
+    if (controller == null || !controller!.value.isInitialized) {
       return Container();
     } else {
       return Listener(
@@ -249,22 +249,13 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       );
     }
   }
-
-  @override 
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if(mounted) {
-      context.read<NetworkProvider>().checkConnection(context);
-    }
-  }
   
   @override 
   void initState() {
     super.initState();
-    _onInitCamera();
-    _ambiguate(WidgetsBinding.instance)?.addObserver(this);
 
     NotificationService.init();
+    SocketServices.shared.connect(context);
     
     (() async {
       PermissionStatus permissionStorage = await Permission.storage.status;
@@ -274,37 +265,38 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     });
     
     msgController = TextEditingController();
+         
+    subscription = VideoCompress.compressProgress$.subscribe((event) {
+      setState(() {
+        progress = event;
+      }); 
+    });
     
-    if(mounted) {
-      SocketServices.shared.connect(context);
-    }
+    WidgetsBinding.instance!.addPostFrameCallback((_) async {
+      await onInitCamera();
 
-    if(mounted) {
-      subscription = VideoCompress.compressProgress$.subscribe((event) {
-        setState(() {
-          progress = event;
-        }); 
-      });
-    }
-    if(mounted) {
-      context.read<LocationProvider>().getCurrentPosition(context);
-    }
-    if(mounted) {
-      context.read<FirebaseProvider>().setupInteractedMessage();
-    }
-    if(mounted) {
-      context.read<FirebaseProvider>().listenNotification(context);
-    }
+      if(mounted) {
+        context.read<NetworkProvider>().checkConnection(context);
+      }
+      if(mounted) {
+        context.read<LocationProvider>().getCurrentPosition(context);
+      }
+      if(mounted) {
+        context.read<FirebaseProvider>().setupInteractedMessage();
+      }
+      if(mounted) {
+        context.read<FirebaseProvider>().listenNotification(context);
+      }
+    });
   }
 
   @override 
   void dispose() {
-    _ambiguate(WidgetsBinding.instance)?.removeObserver(this);
     msgController.dispose();
     controller!.dispose();
-    subscription!.unsubscribe();
-    VideoCompress.cancelCompression();
     SocketServices.shared.dispose();
+    VideoCompress.cancelCompression();
+    subscription!.unsubscribe();
     super.dispose();
   }
 
@@ -337,17 +329,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
         return Future.value(true);
       },
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0.0,
-          centerTitle: true,
-          title: const Text("SOS Broadcast Video",
-            style: TextStyle(
-              color: Colors.black87,
-              fontSize: 16.0
-            ),
-          ),
-        ),
+        backgroundColor: const Color(0xffF6F6F6),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
@@ -374,9 +356,40 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                     child: CustomScrollView(
                       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                       slivers: [
+
+                        SliverAppBar(
+                          backgroundColor: Colors.white,
+                          elevation: 0.0,
+                          centerTitle: true,
+                          title: const Text("SOS Broadcast Video",
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 16.0
+                            ),
+                          ),
+                          bottom: PreferredSize(
+                            child: Consumer<LocationProvider>(
+                              builder: (BuildContext context, LocationProvider locationProvider, Widget? child) {
+                                return Container(
+                                  color: const Color(0xffF6F6F6),
+                                  width: double.infinity,
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text(locationProvider.getCurrentNameAddress,
+                                    style: const TextStyle(
+                                      fontSize: 14.0
+                                    ),
+                                  ),
+                                );
+                              },
+                            ), 
+                            preferredSize: const Size.fromHeight(60.0) 
+                          ),
+                        ),
                     
                         SliverFillRemaining(
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                                               
@@ -436,9 +449,14 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                               color: Colors.transparent,
                                               child: InkWell(
                                                 onTap: () async {
-
+                          
                                                   await onVideoRecordButtonPressed();
 
+                                                  Timer.periodic(const Duration(seconds: 15), (timer) {
+                                                    onStopButtonPressed(context);
+                                                    timer.cancel();
+                                                  });
+                          
                                                   Navigator.push(context,
                                                     PageRouteBuilder(pageBuilder: (context, animation, secondaryAnimation) {
                                                       return Scaffold(
@@ -447,7 +465,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                                           child: Stack(
                                                             clipBehavior: Clip.none,
                                                             children: [
-                        
+                                                
                                                               Container(
                                                                 padding: const EdgeInsets.all(1.0),
                                                                 width: double.infinity,
@@ -483,7 +501,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                                                   ),
                                                                 ),
                                                               ),
-                        
+                                                
                                                             ],
                                                           ),
                                                         ),
@@ -679,5 +697,3 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     );
   }
 }
-
-T? _ambiguate<T>(T? value) => value;
