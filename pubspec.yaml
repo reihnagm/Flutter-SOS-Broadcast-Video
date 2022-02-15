@@ -64,6 +64,10 @@ dependencies:
   web_socket_channel: ^2.1.0
   shared_preferences: ^2.0.13
   dio: ^4.0.4
+  firebase_messaging: ^11.2.6
+  flutter_local_notifications: ^9.3.1
+  rxdart: ^0.27.3
+  flutter_native_timezone: ^2.0.0
 
 dev_dependencies:
   flutter_test:

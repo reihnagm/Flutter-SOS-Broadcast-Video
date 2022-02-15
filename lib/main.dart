@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:path/path.dart' as p;
+// import 'package:path/path.dart' as p;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -11,14 +11,17 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:dotted_decoration/dotted_decoration.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+// import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:filesize/filesize.dart';
+import 'package:stream_broadcast_sos/providers/firebase.dart';
 import 'package:stream_broadcast_sos/providers/location.dart';
+import 'package:stream_broadcast_sos/services/notification.dart';
+import 'package:stream_broadcast_sos/utils/global.dart';
 import 'package:uuid/uuid.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
@@ -47,6 +50,7 @@ class MyApp extends StatelessWidget {
       providers: providers,
       child: MaterialApp(
         title: 'SOS Broadcast Video',
+        navigatorKey: GlobalVariable.navState,
         debugShowCheckedModeBanner: false,
         home: MyHomePage(key: UniqueKey()),
       ),
@@ -218,8 +222,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     }
   }
 
- 
-
   void _showCameraException(CameraException e) {
     showInSnackBar('Error: ${e.code}\n${e.description}');
   }
@@ -261,13 +263,22 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     super.initState();
     _onInitCamera();
     _ambiguate(WidgetsBinding.instance)?.addObserver(this);
+
+    NotificationService.init();
+    
     (() async {
       PermissionStatus permissionStorage = await Permission.storage.status;
       if(!permissionStorage.isGranted) {
         await Permission.storage.request();
       } 
     });
+    
     msgController = TextEditingController();
+    
+    if(mounted) {
+      SocketServices.shared.connect(context);
+    }
+
     if(mounted) {
       subscription = VideoCompress.compressProgress$.subscribe((event) {
         setState(() {
@@ -279,7 +290,10 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       context.read<LocationProvider>().getCurrentPosition(context);
     }
     if(mounted) {
-      SocketServices.shared.connect(context);
+      context.read<FirebaseProvider>().setupInteractedMessage();
+    }
+    if(mounted) {
+      context.read<FirebaseProvider>().listenNotification(context);
     }
   }
 
