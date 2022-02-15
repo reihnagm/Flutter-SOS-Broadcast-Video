@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:custom_timer/custom_timer.dart';
 // import 'package:path/path.dart' as p;
 
 import 'package:camera/camera.dart';
@@ -66,9 +67,16 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, TickerProviderStateMixin {
-  dynamic currentBackPressTime;
   late Subscription? subscription;
   late TextEditingController msgController;
+
+  final double _minAvailableZoom = 1.0;
+  final double _maxAvailableZoom = 1.0;
+  final CustomTimerController customTimercontroller = CustomTimerController();
+
+  Timer? timer;
+
+  dynamic currentBackPressTime;
   bool isLoading = false;
   bool isCompressed = false;
   Uint8List? thumbnail;
@@ -83,8 +91,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
   VideoPlayerController? videoController;
 
   double _baseScale = 1.0;
-  final double _minAvailableZoom = 1.0;
-  final double _maxAvailableZoom = 1.0;
   double _currentScale = 1.0;
 
   int _pointers = 0;
@@ -294,6 +300,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
   void dispose() {
     msgController.dispose();
     controller!.dispose();
+    customTimercontroller.dispose();
     SocketServices.shared.dispose();
     VideoCompress.cancelCompression();
     subscription!.unsubscribe();
@@ -337,12 +344,10 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                 builder: (BuildContext context, NetworkProvider networkProvider, Widget? child) {
                   if(networkProvider.connectionStatus == ConnectionStatus.offInternet) {
                     return const Center(
-                      child: Text("There is no Connection / Socket is off",
-                        style: TextStyle(
-                          fontSize: 18.0,
-                          fontWeight: FontWeight.bold
-                        ),
-                      )
+                      child: SpinKitThreeBounce(
+                        size: 20.0,
+                        color: Colors.black87,
+                      ),
                     );
                   }
                   return RefreshIndicator(
@@ -392,7 +397,7 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                             mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                                              
+
                               Container(
                                 width: double.infinity,
                                 margin: const EdgeInsets.all(18.0),
@@ -452,57 +457,102 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                           
                                                   await onVideoRecordButtonPressed();
 
-                                                  Timer.periodic(const Duration(seconds: 15), (timer) {
+                                                  customTimercontroller.start();
+
+                                                  timer = Timer.periodic(const Duration(seconds: 15), (timer) {
                                                     onStopButtonPressed(context);
                                                     timer.cancel();
                                                   });
                           
                                                   Navigator.push(context,
                                                     PageRouteBuilder(pageBuilder: (context, animation, secondaryAnimation) {
-                                                      return Scaffold(
-                                                        key: UniqueKey(),
-                                                        body: SafeArea(
-                                                          child: Stack(
-                                                            clipBehavior: Clip.none,
-                                                            children: [
-                                                
-                                                              Container(
-                                                                padding: const EdgeInsets.all(1.0),
-                                                                width: double.infinity,
-                                                                height: double.infinity,
-                                                                decoration: BoxDecoration(
-                                                                  color: Colors.black,
-                                                                  border: Border.all(
-                                                                    color: controller != null && controller!.value.isRecordingVideo
-                                                                    ? Colors.redAccent
-                                                                    : Colors.grey,
-                                                                    width: 3.0,
+                                                      return WillPopScope(
+                                                        onWillPop: () {
+                                                          timer!.cancel();
+                                                          customTimercontroller.reset();
+                                                          return Future.value(true);
+                                                        },
+                                                        child: Scaffold(
+                                                          key: UniqueKey(),
+                                                          body: SafeArea(
+                                                            child: Stack(
+                                                              clipBehavior: Clip.none,
+                                                              children: [
+                                                                                                      
+                                                                Container(
+                                                                  padding: const EdgeInsets.all(1.0),
+                                                                  width: double.infinity,
+                                                                  height: double.infinity,
+                                                                  decoration: BoxDecoration(
+                                                                    color: Colors.black,
+                                                                    border: Border.all(
+                                                                      color: controller != null && controller!.value.isRecordingVideo
+                                                                      ? Colors.redAccent
+                                                                      : Colors.grey,
+                                                                      width: 3.0,
+                                                                    ),
+                                                                  ),
+                                                                  child: _cameraPreviewWidget()
+                                                                ),
+
+                                                                Container(
+                                                                  margin: const EdgeInsets.only(bottom: 150.0),
+                                                                  child: Align(
+                                                                    alignment: Alignment.center,
+                                                                    child: CustomTimer(
+                                                                      controller: customTimercontroller,
+                                                                      begin: const Duration(seconds: 15),
+                                                                      end: const Duration(),
+                                                                      builder: (time) {
+                                                                        return Text(
+                                                                          time.seconds,
+                                                                          style: const TextStyle(
+                                                                            color: Colors.white,
+                                                                            fontSize: 50.0
+                                                                          )
+                                                                        );
+                                                                      },
+                                                                      stateBuilder: (time, state) {
+                                                                        if(state == CustomTimerState.paused) {
+                                                                          const Text("The timer is paused",
+                                                                            style: TextStyle(fontSize: 24.0)
+                                                                          );
+                                                                        }
+                                                                        return null;
+                                                                      },
+                                                                      animationBuilder: (Widget child) {
+                                                                        return AnimatedSwitcher(
+                                                                          duration: const Duration(milliseconds: 250),
+                                                                          child: child,
+                                                                        );
+                                                                      },
+                                                                      onChangeState: (state) { }
+                                                                    ),
                                                                   ),
                                                                 ),
-                                                                child: _cameraPreviewWidget()
-                                                              ),
-                                                              
-                                                              Align(
-                                                                alignment: Alignment.center,
-                                                                child: Container(
-                                                                  padding: const EdgeInsets.all(5.0),
-                                                                  decoration: const BoxDecoration(
-                                                                    color: Colors.white,
-                                                                    shape: BoxShape.circle
-                                                                  ),
-                                                                  child: IconButton(
-                                                                    icon: const Icon(Icons.stop),
-                                                                    color: Colors.red,
-                                                                    onPressed: controller != null &&
-                                                                    controller!.value.isInitialized &&
-                                                                    controller!.value.isRecordingVideo
-                                                                    ? () => onStopButtonPressed(context)
-                                                                    : null,
+                                                                
+                                                                Align(
+                                                                  alignment: Alignment.center,
+                                                                  child: Container(
+                                                                    padding: const EdgeInsets.all(5.0),
+                                                                    decoration: const BoxDecoration(
+                                                                      color: Colors.white,
+                                                                      shape: BoxShape.circle
+                                                                    ),
+                                                                    child: IconButton(
+                                                                      icon: const Icon(Icons.stop),
+                                                                      color: Colors.red,
+                                                                      onPressed: controller != null &&
+                                                                      controller!.value.isInitialized &&
+                                                                      controller!.value.isRecordingVideo
+                                                                      ? () => onStopButtonPressed(context)
+                                                                      : null,
+                                                                    ),
                                                                   ),
                                                                 ),
-                                                              ),
-                                                
-                                                            ],
+                                                                                                      
+                                                              ],
+                                                            ),
                                                           ),
                                                         ),
                                                       );
