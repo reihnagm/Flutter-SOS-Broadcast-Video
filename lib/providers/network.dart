@@ -2,11 +2,16 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum ConnectionStatus { onInternet, offInternet}
 
-
 class NetworkProvider with ChangeNotifier {
+  final SharedPreferences sharedPreferences;
+  NetworkProvider({
+    required this.sharedPreferences
+  });
+
   StreamSubscription? connectedToInternet;
 
   bool isStillTurnOffSocket = false;

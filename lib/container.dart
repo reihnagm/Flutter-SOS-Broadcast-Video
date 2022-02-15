@@ -8,9 +8,9 @@ import 'package:stream_broadcast_sos/providers/videos.dart';
 final getIt = GetIt.instance;
 
 Future<void> init() async {
-  getIt.registerFactory(() => NetworkProvider());
-  getIt.registerFactory(() => VideoProvider());
-  getIt.registerFactory(() => FirebaseProvider());
+  getIt.registerFactory(() => NetworkProvider(sharedPreferences: getIt()));
+  getIt.registerFactory(() => VideoProvider(sharedPreferences: getIt()));
+  getIt.registerFactory(() => FirebaseProvider(sharedPreferences: getIt()));
   getIt.registerFactory(() => LocationProvider(sharedPreferences: getIt()));
 
   // External

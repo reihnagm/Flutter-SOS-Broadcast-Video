@@ -69,6 +69,10 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, TickerProviderStateMixin {
   late Subscription? subscription;
   late TextEditingController msgController;
+  late FirebaseProvider firebaseProvider;
+  late LocationProvider locationProvider;
+  late NetworkProvider networkProvider;
+  late VideoProvider videoProvider;
 
   final double _minAvailableZoom = 1.0;
   final double _maxAvailableZoom = 1.0;
@@ -269,13 +273,27 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       );
     }
   }
+
+  @override 
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance!.addPostFrameCallback((_) async {
+      if(mounted) {
+        videoProvider.fetchFcm(context);
+      }
+    });
+  }
   
   @override 
   void initState() {
     super.initState();
 
+    firebaseProvider = context.read<FirebaseProvider>();
+    videoProvider = context.read<VideoProvider>();
+    networkProvider = context.read<NetworkProvider>();
+    locationProvider = context.read<LocationProvider>();
+
     NotificationService.init();
-    SocketServices.shared.connect(context);
     
     (() async {
       PermissionStatus permissionStorage = await Permission.storage.status;
@@ -296,16 +314,13 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
       await onInitCamera();
 
       if(mounted) {
-        context.read<NetworkProvider>().checkConnection(context);
+        networkProvider.checkConnection(context);
       }
       if(mounted) {
-        context.read<LocationProvider>().getCurrentPosition(context);
+        locationProvider.getCurrentPosition(context);
       }
       if(mounted) {
-        context.read<FirebaseProvider>().setupInteractedMessage();
-      }
-      if(mounted) {
-        context.read<FirebaseProvider>().listenNotification(context);
+        SocketServices.shared.connect(context);
       }
     });
   }
@@ -715,11 +730,10 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                       lat: context.read<LocationProvider>().getCurrentLat,
                                       lng: context.read<LocationProvider>().getCurrentLng
                                     );
-                                    // == SEND NOTIFICATION == 
-                                    // context.read<FirebaseProvider>().sendNotification(
-                                    //   title: "SOS", 
-                                    //   body: "- Kebakaran - Jl Galaxy No 3, Kec, Saturnus, Kel. Pluto"
-                                    // );
+                                    context.read<FirebaseProvider>().sendNotification(context,
+                                      title: "SOS", 
+                                      body: msgController.text
+                                    );
                                     msgController.text = "";
                                     setState(() {
                                       isLoading = false;
