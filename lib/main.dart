@@ -233,6 +233,20 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     showInSnackBar('Error: ${e.code}\n${e.description}');
   }
 
+  Future<void> generateThumbnail(File file) async {
+    final thumbnailBytes = await VideoCompress.getByteThumbnail(file.path);
+    setState(() {
+      thumbnail = thumbnailBytes;
+    });
+  }
+
+  Future<void> getVideoSize(File file) async {
+    final size = await file.length(); 
+    setState(() {
+      videoSize = size;
+    });
+  }
+
   Widget _cameraPreviewWidget() {
     if (controller == null || !controller!.value.isInitialized) {
       return Container();
@@ -305,20 +319,6 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
     VideoCompress.cancelCompression();
     subscription!.unsubscribe();
     super.dispose();
-  }
-
-  Future<void> generateThumbnail(File file) async {
-    final thumbnailBytes = await VideoCompress.getByteThumbnail(file.path);
-    setState(() {
-      thumbnail = thumbnailBytes;
-    });
-  }
-
-  Future<void> getVideoSize(File file) async {
-    final size = await file.length(); 
-    setState(() {
-      videoSize = size;
-    });
   }
 
   @override

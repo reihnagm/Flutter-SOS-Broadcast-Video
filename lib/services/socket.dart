@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'package:stream_broadcast_sos/providers/network.dart';
-import 'package:stream_broadcast_sos/providers/videos.dart';
 
 class SocketServices {
   static final shared = SocketServices();
@@ -24,11 +23,6 @@ class SocketServices {
     socket.on("connect", (_) {
       debugPrint("=== SOCKET IS CONNECTED ===");
       context.read<NetworkProvider>().turnOnSocket();
-      socket.on("message", (data) {
-        final r = data as dynamic;
-        final d = r as Map<String, dynamic>;
-        context.read<VideoProvider>().listenV(context, d);
-      });
     });
     socket.on("disconnect", (_) {
       debugPrint("=== SOCKET IS DISCONNECTED  ===");
