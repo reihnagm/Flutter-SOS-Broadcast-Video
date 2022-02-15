@@ -63,11 +63,19 @@ class SocketServices {
     });
   }
   
-  void sendMsg({required String id, required String msg, required String mediaUrl}) {
+  void sendMsg({
+    required String id, 
+    required String msg, 
+    required String mediaUrl,
+    required double lat, 
+    required double lng
+  }) {
     socket.emit("message", jsonEncode({
       "id": id,
       "mediaUrl": mediaUrl,
       "msg": msg,
+      "lat": lat,
+      "lng": lng
     }));
   }
 

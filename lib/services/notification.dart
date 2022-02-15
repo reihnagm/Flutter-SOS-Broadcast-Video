@@ -26,7 +26,6 @@ class NotificationService {
     );
   } 
 
-
   static Future init({bool initScheduled = true}) async {
     InitializationSettings settings =  const InitializationSettings(
       android: AndroidInitializationSettings('@drawable/ic_notification'),

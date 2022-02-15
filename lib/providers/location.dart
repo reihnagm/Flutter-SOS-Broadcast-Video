@@ -25,5 +25,5 @@ class LocationProvider extends ChangeNotifier {
 
   double get getCurrentLat => sharedPreferences.getDouble("lat") ?? 0.0;
   
-  double get getCurrentLong => sharedPreferences.getDouble("long") ?? 0.0;
+  double get getCurrentLng => sharedPreferences.getDouble("long") ?? 0.0;
 }

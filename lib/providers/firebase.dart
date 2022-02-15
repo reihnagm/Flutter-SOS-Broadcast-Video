@@ -49,15 +49,16 @@ class FirebaseProvider with ChangeNotifier {
   }
 
   Future<void> sendNotification({
+    required String title,
     required String body,
   }) async {
     Map<String, dynamic> data = {};
     data = {
-      "to": await FirebaseMessaging.instance.getToken(),
+      "to": "?", // Iniatialize Data on Receiver
       "collapse_key" : "Broadcast SOS",
       "priority":"high",
       "notification": {
-        "title": "SOS",
+        "title": title,
         "body": body,
         "sound":"default",
       },

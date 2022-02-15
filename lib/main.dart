@@ -18,14 +18,14 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:filesize/filesize.dart';
-import 'package:stream_broadcast_sos/providers/firebase.dart';
-import 'package:stream_broadcast_sos/providers/location.dart';
-import 'package:stream_broadcast_sos/services/notification.dart';
-import 'package:stream_broadcast_sos/utils/global.dart';
 import 'package:uuid/uuid.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:stream_broadcast_sos/providers/firebase.dart';
+import 'package:stream_broadcast_sos/providers/location.dart';
+import 'package:stream_broadcast_sos/services/notification.dart';
+import 'package:stream_broadcast_sos/utils/global.dart';
 import 'package:stream_broadcast_sos/providers.dart';
 import 'package:stream_broadcast_sos/providers/network.dart';
 import 'package:stream_broadcast_sos/providers/videos.dart';
@@ -628,6 +628,8 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                   onTap: () async {
                                     if(msgController.text.trim().isEmpty) return;
                                     if(videoCompressInfo == null) return;
+                                    if(context.read<LocationProvider>().getCurrentLat == 0.0) return;
+                                    if(context.read<LocationProvider>().getCurrentLng == 0.0) return;
                                     // Reference ref = FirebaseStorage.instance.ref().child('${const Uuid().v4()}.mp4');
                                     // UploadTask task = ref.putFile(File(videoCompressInfo!.path!));
                                     setState(() {
@@ -641,8 +643,15 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver, Ti
                                     SocketServices.shared.sendMsg(
                                       id: const Uuid().v4(),
                                       msg: msgController.text,
-                                      mediaUrl: url!
+                                      mediaUrl: url!,
+                                      lat: context.read<LocationProvider>().getCurrentLat,
+                                      lng: context.read<LocationProvider>().getCurrentLng
                                     );
+                                    // == SEND NOTIFICATION == 
+                                    // context.read<FirebaseProvider>().sendNotification(
+                                    //   title: "SOS", 
+                                    //   body: "- Kebakaran - Jl Galaxy No 3, Kec, Saturnus, Kel. Pluto"
+                                    // );
                                     msgController.text = "";
                                     setState(() {
                                       isLoading = false;
